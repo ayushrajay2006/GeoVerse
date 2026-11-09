@@ -23,6 +23,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    mode: str = "professional"
 
 @app.get("/")
 def read_root():
@@ -30,7 +31,7 @@ def read_root():
 
 @app.post("/api/chat")
 def chat_endpoint(req: ChatRequest):
-    return agent.process_query(req.message)
+    return agent.process_query(req.message, req.mode)
 
 if __name__ == "__main__":
     import uvicorn

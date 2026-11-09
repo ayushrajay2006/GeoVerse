@@ -9,8 +9,9 @@ def get_llm():
     if not api_key:
         raise ValueError("GROQ_API_KEY is not set. Please set it in your .env file.")
     
-    # We use GPT OSS 120B as it is universally available on Groq and supports structured outputs
-    return ChatGroq(temperature=0, model_name="openai/gpt-oss-120b", groq_api_key=api_key)
+    # We use the flagship openai/gpt-oss-120b which is available and fully supported on Groq
+    # Added max_retries=5 to automatically handle 429 Rate Limit (8000 TPM) errors
+    return ChatGroq(temperature=0, model_name="openai/gpt-oss-120b", groq_api_key=api_key, max_retries=5)
 
 class GeoVerseAgent:
     def __init__(self):
@@ -22,45 +23,11 @@ class GeoVerseAgent:
             self.is_ready = False
             self.error_msg = str(e)
             
-    def process_query(self, query: str) -> dict:
+    def process_query(self, query: str, mode: str = "professional") -> dict:
         if not self.is_ready:
-            # MOCK MODE: If no API key is provided, return a beautifully formatted mock response 
-            # to allow for UI testing and frontend development.
-            import time
-            time.sleep(1.5) # Simulate network latency
-            
-            mock_report = """# 🌍 Spatial Analysis Report
-
-Based on your query: *"{}"*
-
-### 1. Planning & Data Retrieval
-The Planning Agent successfully orchestrated the workflow. The following datasets were retrieved via Google Earth Engine:
-- **Sentinel-2 MultiSpectral Instrument (MSI)** (Level-2A)
-- **OpenStreetMap (OSM)** Vector Road Networks
-
-### 2. Geospatial Analysis
-Our Analysis Agents performed a **Random Forest Classification** to detect urban sprawl and vegetation changes. 
-
-> **Key Finding:** There is a **14.2% increase** in urban built-up area and a corresponding **8.5% decrease** in dense vegetation over the specified timeframe.
-
-### 3. Validation
-✅ **Validation Passed:** The detected changes are consistent with the spatial resolution of the Sentinel-2 imagery (10m).
-
-### 💡 Recommendations
-- **Urban Planning:** Consider implementing green corridors to mitigate the heat island effect caused by the 14.2% increase in concrete surfaces.
-- **Further Analysis:** Run a hydrological model to see if this new urban sprawl affects local flood plains.
-
-*Note: This is a simulated response because the Groq API Key was not found in `.env`.*
-""".format(query)
-
             return {
-                "reply": mock_report,
-                "map_layers": [
-                    {
-                        "name": "Simulated NDVI Layer",
-                        "url": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-                    }
-                ]
+                "reply": "⚠️ **System Not Ready:** Real execution requires an LLM. Please add your `GROQ_API_KEY` to the `.env` file to run the actual Agentic GIS pipeline.",
+                "map_layers": []
             }
             
         # Import agents inside the class or module
@@ -106,11 +73,26 @@ Our Analysis Agents performed a **Random Forest Classification** to detect urban
             validation_result = validation_agent.validate(plan_json, data_summary, analysis_result)
             
             # Step 5: Final Decision Support Report
-            final_report = decision_agent.generate_report(plan_json, data_summary, analysis_result, validation_result)
+            final_report = decision_agent.generate_report(plan_json, data_summary, analysis_result, validation_result, mode)
+            
+            # Extract coordinates for map fly-to
+            focus_location = None
+            target_region = None
+            try:
+                plan_data = json.loads(plan_json)
+                target_region = plan_data.get("target_region_name")
+                lat = plan_data.get("center_lat")
+                lon = plan_data.get("center_lon")
+                if lat is not None and lon is not None:
+                    focus_location = {"lat": float(lat), "lng": float(lon)}
+            except:
+                pass
             
             return {
                 "reply": final_report,
-                "map_layers": map_layers
+                "map_layers": map_layers,
+                "focus_location": focus_location,
+                "target_region": target_region
             }
         except Exception as e:
             return {

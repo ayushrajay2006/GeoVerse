@@ -1,17 +1,26 @@
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 import json
 from tools.earth_engine_tools import get_sentinel2_ndvi_map, get_sentinel2_true_color_map
+from tools.osm_tools import get_osm_amenity_count
+from tools.elevation_tools import get_elevation_data
 
 class DataRetrievalAgent:
     def __init__(self, llm):
-        self.tools = [get_sentinel2_ndvi_map, get_sentinel2_true_color_map]
+        self.tools = [
+            get_sentinel2_ndvi_map, 
+            get_sentinel2_true_color_map,
+            get_osm_amenity_count,
+            get_elevation_data
+        ]
         self.llm_with_tools = llm.bind_tools(self.tools)
         
         self.system_prompt = SystemMessage(content='''
 You are the Data Retrieval Agent for GeoVerse. 
-Based on the workflow plan, use your available tools to fetch actual Earth Observation data via Google Earth Engine.
+Based on the workflow plan, use your available tools to fetch actual Earth Observation data via Google Earth Engine, OpenStreetMap, or Open-Meteo DEM.
 - If the plan involves vegetation, urban sprawl, or NDVI, use `get_sentinel2_ndvi_map`.
 - If it asks for visual imagery, use `get_sentinel2_true_color_map`.
+- If it asks for amenities (schools, hospitals, buildings), use `get_osm_amenity_count`.
+- If it involves flood risk or terrain, use `get_elevation_data`.
 IMPORTANT: You MUST extract the latitude and longitude from the user's location (e.g., Hyderabad is approx lat: 17.38, lon: 78.48).
 Use a recent 3-month date range (e.g., '2023-01-01' to '2023-03-01').
 After retrieving the data, provide a structured summary of what was retrieved.
